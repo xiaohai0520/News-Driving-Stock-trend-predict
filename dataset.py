@@ -12,8 +12,7 @@ from nltk.corpus import stopwords
 # global file path
 file = "D:\\Projects\\stock_predict\\glove.6B\\glove.6B.50d.txt"
 glove_vector_name = "gensim_glove_vectors.txt"
-news_file = "D:\Projects\\stock_predict\\stock_data\\Predicting-the-Dow-Jones-with-Headlines-master\\News.csv"
-price_file = "D:\Projects\\stock_predict\\stock_data\\Predicting-the-Dow-Jones-with-Headlines-master\\DowJones.csv"
+
 embedding_dim = 50
 
 # A list of contractions from http://stackoverflow.com/questions/19790188/expanding-english-language-contractions-in-python
@@ -115,12 +114,14 @@ class DataSet():
 
 
         self.train_size = int(split_ratio * (len(self.y) - time_step - 1))
-        # self.test_size = len(self.y) - self.
 
+        self.test_size = len(self.y) - self.train_size
 
+    def get_size(self):
+        return self.train_size, self.test_size
 
     def get_num_features(self):
-        return self.news.shape[1]
+        return self.news[0].shape[1]
 
     def get_train_set(self):
         return self.news[:self.train_size], self.y[:self.train_size], self.y_seq[:self.train_size]
@@ -150,8 +151,8 @@ class DataSet():
         """
         :return: both of the news and stock price
         """
-        dj = pd.read_csv(price_file)
-        news = pd.read_csv(news_file)
+        dj = pd.read_csv(self.pricesfile)
+        news = pd.read_csv(self.newsfile)
         return dj, news
 
     def clean_text(self,text, remove_stopwords=True):
@@ -310,7 +311,7 @@ class DataSet():
         for i in range(len(prices_trend) - time_step - 1):
             last = i + time_step
             x.append(headlines[i:last])
-            y.append(prices_trend[last])
+            y.append([0,1] if prices_trend[last] > 0 else [1,0])
             y_seq.append(prices_trend[i:last])
         return np.array(x), np.array(y), np.array(y_seq)
 
