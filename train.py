@@ -28,8 +28,8 @@ class Trainer:
 
     def __init__(self, driving, target, time_step, split, lr):
         # self.dataset = DataSet(driving, target, time_step, split)
-
-
+        #
+        #
         # f = open('dataset_obj.txt','wb')
         # pickle.dump(self.dataset,f)
         # f.close()
@@ -54,12 +54,14 @@ class Trainer:
             self.decoder = self.decoder.cuda()
         self.encoder_optim = optim.Adam(self.encoder.parameters(), lr)
         self.decoder_optim = optim.Adam(self.decoder.parameters(), lr)
-        self.loss_func = nn.BCELoss()
+        self.loss_func = nn.CrossEntropyLoss()
         self.train_size, self.test_size = self.dataset.get_size()
 
     def train_minibatch(self, num_epochs, batch_size, interval):
         x_train, y_train, y_seq_train = self.dataset.get_train_set()
+        # print(x_train.shape)
         for epoch in range(num_epochs):
+            print('Start epoch{}'.format(epoch))
             i = 0
             loss_sum = 0
             while i < self.train_size:
@@ -69,7 +71,8 @@ class Trainer:
                 if (batch_end >= self.train_size):
                     batch_end = self.train_size
                 var_x = self.to_variable(x_train[i: batch_end])
-                var_y = self.to_variable(y_train[i: batch_end])
+                # var_y = self.to_variable(y_train[i: batch_end])
+                var_y = Variable(torch.from_numpy(y_train[i: batch_end]).long()).cuda()
                 var_y_seq = self.to_variable(y_seq_train[i: batch_end])
                 if var_x.dim() == 2:
                     var_x = var_x.unsqueeze(2)
@@ -77,14 +80,22 @@ class Trainer:
                 # print('code_size:',code.size())
                 y_res = self.decoder(code, var_y_seq)
 
-                # print(y_res[0])
-                # print(var_y[0])
-                loss = self.loss_func(torch.sigmoid(y_res), var_y)
+                # print(y_res[0],' ',y_res[1])
+                # print(var_y[0],' ',var_y[1])
+                # print('y_res',y_res.shape)
+                # print('var_y',var_y.shape)
+                loss = self.loss_func(y_res, var_y)
                 loss.backward()
                 self.encoder_optim.step()
                 self.decoder_optim.step()
                 loss_sum += loss.item()
-                i = batch_end
+
+                #there is a problem need to fix!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+                i += 1
+                if i %50 == 0:
+                    print('finish {0:.2f}/100'.format(i/self.train_size))
+
+
             print('epoch [%d] finished, the average loss is %f' % (epoch, loss_sum))
             if (epoch + 1) % (interval) == 0:
                 torch.save(self.encoder.state_dict(), 'D:\Projects\\stock_predict\\models\\encoder' + str(epoch + 1) + '-norm' + '.model')
@@ -97,12 +108,12 @@ class Trainer:
         x_test, y_test, y_seq_test = self.dataset.get_test_set()
         i = 0
         res = []
-        y_labels = []
-        for y in y_test:
-            if y[0] == 0:
-                y_labels.append(1)
-            else:
-                y_labels.append(0)
+        # y_labels = []
+        # for y in y_test:
+        #     if y[0] == 0:
+        #         y_labels.append(1)
+        #     else:
+        #         y_labels.append(0)
 
         while i < self.test_size:
 
@@ -110,29 +121,24 @@ class Trainer:
             if batch_end >= self.test_size:
                 batch_end = self.test_size
             var_x = self.to_variable(x_test[i: batch_end])
-            var_y = self.to_variable(y_test[i: batch_end])
+            var_y = Variable(torch.from_numpy(y_test[i: batch_end]).long()).cuda()
+            # var_y = self.to_variable(y_test[i: batch_end])
             var_y_seq = self.to_variable(y_seq_test[i: batch_end])
             if var_x.dim() == 2:
                 var_x = var_x.unsqueeze(2)
             weight1, code = self.encoder(var_x)
             # print('code_size:',code.size())
             y_res = self.decoder(code, var_y_seq)
-            y_res = torch.sigmoid(y_res)
-            _,predict = torch.max(y_res.data,i)
-            res.extend(predict)
+            # y_res = torch.sigmoid(y_res)
+            pred = torch.max(F.softmax(y_res,dim=2), 1)[1]
+            pred_y = pred.data.cpu().numpy().squeeze()
+            res.extend(pred_y)
             i = batch_end
 
         res = np.array(res)
 
-        y_labels = np.array(y_labels)
-
-
-        correct = (res == y_labels).sum()
+        correct = (res == y_test).sum()
         print(correct / len(y_test))
-
-
-
-
 
 
 
