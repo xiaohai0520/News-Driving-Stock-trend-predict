@@ -12,7 +12,6 @@ from nltk.corpus import stopwords
 # global file path
 file = "D:\\Projects\\stock_predict\\glove.6B\\glove.6B.50d.txt"
 glove_vector_name = "gensim_glove_vectors.txt"
-
 embedding_dim = 50
 
 # A list of contractions from http://stackoverflow.com/questions/19790188/expanding-english-language-contractions-in-python
@@ -282,10 +281,18 @@ class DataSet():
                 except KeyError:
                     #                 print('No word')
                     single_news_vec.append(np.random.uniform(-1.0, 1.0, embedding_dim))
+            #size 22 * 50
             single_news_vec = np.array(single_news_vec)
+            # size n * 50
 
-            news_vectors.append(single_news_vec.mean())
-        return np.array(news_vectors)
+            # print('single news vector:',single_news_vec.shape)
+
+            #
+            news_vectors.append(single_news_vec.mean(0))
+        # 22 * 50
+        news_vectors = np.array(news_vectors)
+        # print('daily total news vecotr:',news_vectors.shape)
+        return news_vectors
 
 
 
@@ -311,7 +318,7 @@ class DataSet():
         for i in range(len(prices_trend) - time_step - 1):
             last = i + time_step
             x.append(headlines[i:last])
-            y.append([0,1] if prices_trend[last] > 0 else [1,0])
+            y.append(1 if prices_trend[last] > 0 else 0)
             y_seq.append(prices_trend[i:last])
         return np.array(x), np.array(y), np.array(y_seq)
 
@@ -324,10 +331,20 @@ class DataSet():
 
         headlines = self.news_embedding(headlines)
         # print(headlines[:5])
+
+        #
         min_length = min(len(i) for i in headlines)
-        headlines = [i[:min_length] for i in headlines]
+        max_length = max(len(i) for i in headlines)
+        cur_headlines = []
+        for headline in headlines:
+            if len(headline) == max_length:
+                cur_headlines.append(headline)
+            else:
+                cur_headlines.append(np.concatenate((headline,np.zeros((max_length - len(headline),embedding_dim)))))
+        # headlines = [i for i in headlines if len(i) == max_length else i + ]
+        # headlines = [i[:min_length] for i in headlines]
         # print(headlines[:10])
-        return prices_trend, headlines
+        return prices_trend, np.array(cur_headlines)
 
 
 
