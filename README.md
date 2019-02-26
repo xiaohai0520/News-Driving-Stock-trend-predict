@@ -20,36 +20,17 @@ This project is used for predicting the trend of stock based on the news.
   *[numpy](https://github.com/numpy/numpy)*  
 
  
-
 # Usage
-
-```
-```
-
-```
-
-
-```
 
 ## Input
 
-
-
-```
-
-```
 ## Output
-
-```
-
-``` 
 
 # Analysis
 
 ## Influence
 
 ## Optimization
-
 
 
 
