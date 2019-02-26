@@ -1,1 +1,1 @@
-# Predict-Trend-on-ML
+# News Driving Stock trend predict based on DA-RNN
