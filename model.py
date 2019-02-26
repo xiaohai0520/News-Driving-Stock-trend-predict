@@ -65,6 +65,7 @@ class Encoder(nn.Module):
             hidden = lstm_states[0]
             cell = lstm_states[1]
             # Save output
+            
             input_weighted[:, t, :] = weighted_input
             input_encoded[:, t, :] = hidden
 
