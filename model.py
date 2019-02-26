@@ -2,14 +2,14 @@ import torch
 from torch import nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-
+from dataset import embedding_dim
 
 
 class Encoder(nn.Module):
 
     def __init__(self, input_size, hidden_size, T):
         """
-        input size: number of underlying factors (20 )
+        input size: number of underlying factors (25 )
         T: number of time steps (10)
         hidden_size: dimension of the hidden state
         """
@@ -18,11 +18,16 @@ class Encoder(nn.Module):
         self.hidden_size = hidden_size
         self.T = T
 
+        self.news_linear = nn.Linear(in_features=embedding_dim, out_features=1)
         self.lstm_layer = nn.LSTM(input_size=input_size, hidden_size=hidden_size, num_layers=1)
         self.attn_linear = nn.Linear(in_features=2 * hidden_size + T, out_features=1)
 
     def forward(self, input_data):
-        # print(input_data.size())
+        # print(input_data.shape)
+        input_data = self.news_linear(input_data)
+        # print(input_data.shape)
+        input_data = input_data.squeeze(3)
+        # print(input_data.shape)
         # input_data: (batch_size, T , input_size)
         input_weighted = Variable(torch.zeros(input_data.size(0), self.T, self.input_size))
         input_encoded = Variable(torch.zeros(input_data.size(0), self.T, self.hidden_size))
@@ -135,6 +140,8 @@ class Decoder(nn.Module):
 
         # Eqn. 22: final output
         return self.fc_final(torch.cat((hidden[0], context), dim=1))
+        # return F.softmax(x,dim=1)
+
 
     def init_hidden(self,x, hidden_size):
         if torch.cuda.is_available():
