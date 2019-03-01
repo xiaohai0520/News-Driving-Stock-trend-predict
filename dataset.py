@@ -94,7 +94,7 @@ contractions = {
 
 class DataSet():
 
-    def __init__(self,newsfile,pricesfile,time_step,split_ratio=0.8):
+    def __init__(self,newsfile,pricesfile,time_step,split_ratio=0.6):
 
         self.newsfile = newsfile
 
@@ -114,10 +114,12 @@ class DataSet():
 
         self.train_size = int(split_ratio * (len(self.y) - time_step - 1))
 
-        self.test_size = len(self.y) - self.train_size
+        self.validation_size = (len(self.y) - self.train_size)//2
+
+        self.test_size = len(self.y) - self.train_size - self.validation_size
 
     def get_size(self):
-        return self.train_size, self.test_size
+        return self.train_size, self.validation_size, self.test_size
 
     def get_num_features(self):
         return self.news[0].shape[1]
@@ -125,8 +127,12 @@ class DataSet():
     def get_train_set(self):
         return self.news[:self.train_size], self.y[:self.train_size], self.y_seq[:self.train_size]
 
+    def get_validation_set(self):
+        return self.news[self.train_size:self.train_size+self.validation_size],self.y[self.train_size:self.train_size+self.validation_size],self.y_seq[self.train_size:self.train_size+self.validation_size]
+
     def get_test_set(self):
-        return self.news[self.train_size:], self.y[self.train_size:], self.y_seq[self.train_size:]
+        return self.news[self.train_size+self.validation_size:],self.y[self.train_size+self.validation_size:],self.y_seq[self.train_size+self.validation_size:]
+        # return self.news[self.train_size:], self.y[self.train_size:], self.y_seq[self.train_size:]
 
 
     def transfer_model(self,input, output):

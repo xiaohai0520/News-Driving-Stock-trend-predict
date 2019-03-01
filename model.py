@@ -65,7 +65,7 @@ class Encoder(nn.Module):
             hidden = lstm_states[0]
             cell = lstm_states[1]
             # Save output
-            
+
             input_weighted[:, t, :] = weighted_input
             input_encoded[:, t, :] = hidden
 
@@ -129,10 +129,11 @@ class Decoder(nn.Module):
             # print("x1",x)
             # Eqn. 14: compute context vector
             context = torch.bmm(x.unsqueeze(1), input_encoded).squeeze(1)  # (batch_size, encoder_hidden_size)
-            # print('content',context.size())
+            print('content',context.shape)
             # print(y_history.size())
             # Eqn. 15
             y_tilde = self.fc(torch.cat((context, y_history), dim=1))  # (batch_size, out_size)
+            print('y_title:',y_tilde.shape)
             # Eqn. 16: LSTM
             self.lstm_layer.flatten_parameters()
             _, lstm_output = self.lstm_layer(y_tilde.unsqueeze(0), (hidden, cell))
