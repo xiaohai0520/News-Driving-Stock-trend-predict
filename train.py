@@ -17,26 +17,29 @@ TARGET = "D:\Projects\\stock_predict\\stock_data\\Predicting-the-Dow-Jones-with-
 DECODER_HIDDEN_SIZE = 64
 ENCODER_HIDDEN_SIZE = 64
 TIME_STEP = 10
-SPLIT = 0.8
-LR = 0.03
+SPLIT = 0.6
+LR = 0.001
+momentum = 0.9
 num_epochs = 50
-batch_size = 64
+batch_size = 128
 interval = 5
 # best_dev_acc = 0.0
 
 class Trainer:
 
-    def __init__(self, driving, target, time_step, split, lr):
-        # self.dataset = DataSet(driving, target, time_step, split)
-        #
-        #
-        # f = open('dataset_obj.txt','wb')
-        # pickle.dump(self.dataset,f)
-        # f.close()
+    def __init__(self, driving, target, time_step, split,lr):
+        self.dataset = DataSet(driving, target, time_step, split)
 
-        f = open('dataset_obj.txt','rb')
-        self.dataset = pickle.load(f)
+
+        f = open('dataset_obj.txt','wb')
+        pickle.dump(self.dataset,f)
         f.close()
+
+        print('save model finish!!!!!!!!!!!!!!!!!!')
+
+        # f = open('dataset_obj.txt','rb')
+        # self.dataset = pickle.load(f)
+        # f.close()
 
         self.encoder = Encoder(input_size=self.dataset.get_num_features(), hidden_size=ENCODER_HIDDEN_SIZE,T=time_step)
         self.decoder = Decoder(encoder_hidden_size=ENCODER_HIDDEN_SIZE,  decoder_hidden_size=DECODER_HIDDEN_SIZE,T=time_step)
@@ -79,29 +82,36 @@ class Trainer:
                 var_y_seq = self.to_variable(y_seq_train[i: batch_end])
                 if var_x.dim() == 2:
                     var_x = var_x.unsqueeze(2)
-                weight1,code = self.encoder(var_x)
-                # print('code_size:',code.size())
+                code = self.encoder(var_x)
+
                 y_res = self.decoder(code, var_y_seq)
 
-                # print('see what the pred and truth')
-                # print('y_res:',y_res.shape,' : ',y_res)
-                # print('var_y:',var_y.shape,' : ',var_y)
-
-                pred = torch.max(F.softmax(y_res, dim=1), 1)[1]
-                # print(pred.shape,':',pred)
-                pred_y = pred.data.cpu().numpy().squeeze()
-                # print(pred_y.shape,':',pred_y)
-                # print()
-                pred_res_total.extend(pred_y)
-
                 loss = self.loss_func(y_res, var_y)
+                if i == 0:
+                    print("y_res:",y_res)
+                    print("var_y:",var_y)
                 loss.backward()
                 self.encoder_optim.step()
                 self.decoder_optim.step()
                 loss_sum += loss.item()
 
-                #update the i
+                # update the i
                 i = batch_end
+
+                pred_y = y_res.data.cpu()
+
+                # print('see what the pred and truth')
+                # print('y_res:',y_res.shape,' : ',y_res)
+                # print('var_y:',var_y.shape,' : ',var_y)
+
+                pred_y = torch.max(F.softmax(pred_y,dim=1), 1)[1]
+                #
+                # print('pred_y:',pred_y)
+                # print('var_y',var_y)
+
+                pred_res_total.extend(pred_y)
+
+
 
                 # if i%50 == 0:
                 #     print('         finish {0:.2f}/100'.format(i/self.train_size))
@@ -128,40 +138,7 @@ class Trainer:
 
         return train_acc_list, dev_acc_list,train_loss_list,dev_loss_list
 
-    # def test(self,batch_size,is_test=False):
-    #     x_test, y_test, y_seq_test = self.dataset.get_test_set()
-    #     i = 0
-    #     res = []
-    #     # y_labels = []
-    #     # for y in y_test:
-    #     #     if y[0] == 0:
-    #     #         y_labels.append(1)
-    #     #     else:
-    #     #         y_labels.append(0)
-    #
-    #     while i < self.test_size:
-    #
-    #         batch_end = i + batch_size
-    #         if batch_end >= self.test_size:
-    #             batch_end = self.test_size
-    #         var_x = self.to_variable(x_test[i: batch_end])
-    #         var_y = Variable(torch.from_numpy(y_test[i: batch_end]).long()).cuda()
-    #         # var_y = self.to_variable(y_test[i: batch_end])
-    #         var_y_seq = self.to_variable(y_seq_test[i: batch_end])
-    #         if var_x.dim() == 2:
-    #             var_x = var_x.unsqueeze(2)
-    #         weight1, code = self.encoder(var_x)
-    #         # print('code_size:',code.size())
-    #         y_res = self.decoder(code, var_y_seq)
-    #         # y_res = torch.sigmoid(y_res)
-    #         pred = torch.max(F.softmax(y_res,dim=1), 1)[1]
-    #         pred_y = pred.data.cpu().numpy().squeeze()
-    #         res.extend(pred_y)
-    #         i = batch_end
-    #
-    #     res = np.array(res)
-    #
-    #     return
+
 
     def test(self,batch_size,is_test=False):
         if not is_test:
@@ -183,15 +160,18 @@ class Trainer:
             var_y_seq = self.to_variable(y_seq[i: batch_end])
             if var_x.dim() == 2:
                 var_x = var_x.unsqueeze(2)
-            weight1, code = self.encoder(var_x)
 
+            # to encoder get encoder output
+            code = self.encoder(var_x)
+
+            # to decoder get classification
             y_res = self.decoder(code, var_y_seq)
 
             loss = self.loss_func(y_res, var_y)
             loss_sum += loss.item()
 
-            pred = torch.max(F.softmax(y_res,dim=1), 1)[1]
-            pred_y = pred.data.cpu().numpy().squeeze()
+            pred_y = y_res.data.cpu()
+            pred_y = torch.max(pred_y, 1)[1]
             res.extend(pred_y)
             i = batch_end
 

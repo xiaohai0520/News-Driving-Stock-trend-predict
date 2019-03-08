@@ -1,17 +1,20 @@
 import re
-import gensim
+# import gensim
 import pandas as pd
 import pickle
 import numpy as np
 import nltk
-from gensim.scripts.glove2word2vec import glove2word2vec
-from gensim.models.keyedvectors import KeyedVectors
+# from gensim.scripts.glove2word2vec import glove2word2vec
+# from gensim.models.keyedvectors import KeyedVectors
 from nltk.corpus import stopwords
+from bert_serving.client import BertClient
 
+DRIVING = "D:\Projects\\stock_predict\\stock_data\\Predicting-the-Dow-Jones-with-Headlines-master\\News.csv"
+TARGET = "D:\Projects\\stock_predict\\stock_data\\Predicting-the-Dow-Jones-with-Headlines-master\\DowJones.csv"
 
 # global file path
-file = "D:\\Projects\\stock_predict\\glove.6B\\glove.6B.50d.txt"
-glove_vector_name = "gensim_glove_vectors.txt"
+# file = "D:\\Projects\\stock_predict\\glove.6B\\glove.6B.50d.txt"
+# glove_vector_name = "gensim_glove_vectors.txt"
 embedding_dim = 50
 
 # A list of contractions from http://stackoverflow.com/questions/19790188/expanding-english-language-contractions-in-python
@@ -96,21 +99,28 @@ class DataSet():
 
     def __init__(self,newsfile,pricesfile,time_step,split_ratio=0.6):
 
+        #the news file path
         self.newsfile = newsfile
 
+        #the price file path
         self.pricesfile = pricesfile
 
+        #create a BERT Client object to do the sentence embedding
+        self.bc = BertClient(check_length=False)
 
         #transfer the txt into w2v file
-        self.transfer_model(file,glove_vector_name)
+        # self.transfer_model(file,glove_vector_name)
 
         #get the word2vec model
-        self.model = self.load_glove_model(glove_vector_name)
+        # self.model = self.load_glove_model(glove_vector_name)
 
+
+        #read from the csv
         prices_trend, headlines = self.get_all_data()
 
         self.news, self.y, self.y_seq = self.create_dataset(prices_trend, headlines, time_step)
 
+        print(self.news.shape)
 
         self.train_size = int(split_ratio * (len(self.y) - time_step - 1))
 
@@ -135,33 +145,41 @@ class DataSet():
         # return self.news[self.train_size:], self.y[self.train_size:], self.y_seq[self.train_size:]
 
 
-    def transfer_model(self,input, output):
-        """
-        transfer txt into model with glove lib
-        :param file: file path of the glove txt file
-        :return: None
-        """
-        glove2word2vec(glove_input_file=input, word2vec_output_file=output)
+    # def transfer_model(self,input, output):
+    #     """
+    #     transfer txt into model with glove lib
+    #     :param file: file path of the glove txt file
+    #     :return: None
+    #     """
+    #     glove2word2vec(glove_input_file=input, word2vec_output_file=output)
 
 
-    def load_glove_model(self,input):
-        """
-        get the glove model
-        :param filename: the file name
-        :return: glove model
-        """
-        return KeyedVectors.load_word2vec_format(input, binary=False)
+    # def load_glove_model(self,input):
+    #     """
+    #     get the glove model
+    #     :param filename: the file name
+    #     :return: glove model
+    #     """
+    #     return KeyedVectors.load_word2vec_format(input, binary=False)
 
     def read_news(self):
         """
+        read the data from the csv
         :return: both of the news and stock price
         """
         dj = pd.read_csv(self.pricesfile)
         news = pd.read_csv(self.newsfile)
         return dj, news
 
+
     def clean_text(self,text, remove_stopwords=True):
-        '''Remove unwanted characters and format the text to create fewer nulls word embeddings'''
+        """
+        Remove unwanted characters and format the text to create fewer nulls word embeddings
+        :param text: text
+        :param remove_stopwords: boolean to remove the stopword
+        :return: clleaned news
+        """
+
 
         # Convert words to lower case
         text = text.lower()
@@ -205,7 +223,10 @@ class DataSet():
         return text
 
     def get_data_from_csv(self):
-
+        """
+        read data from csv and return the array
+        :return: stock trend and news array
+        """
         dj, news = self.read_news()
 
         # search the null length
@@ -217,15 +238,15 @@ class DataSet():
         # print(news.shape)
 
         # Compare the number of unique dates. We want matching values.
-        print(len(set(dj.Date)))
-        print(len(set(news.Date)))
+        # print(len(set(dj.Date)))
+        # print(len(set(news.Date)))
 
         # Remove the extra dates that are in news
         news = news[news.Date.isin(dj.Date)]
 
         # make sure the equal
-        print(len(set(dj.Date)))
-        print(len(set(news.Date)))
+        # print(len(set(dj.Date)))
+        # print(len(set(news.Date)))
 
         # use the date as index to get the different each day
         dj = dj.set_index('Date').diff(periods=1)
@@ -260,6 +281,11 @@ class DataSet():
         return prices_trend, headlines
 
     def clean_new(self,headlines):
+        """
+        clean the whole news data
+        :param headlines: the news data set
+        :return: cleaned news data set
+        """
         clean_headlines = []
 
         for daily_headlines in headlines:
@@ -269,91 +295,144 @@ class DataSet():
             clean_headlines.append(clean_daily_headlines)
         return clean_headlines
 
-    def dailynews_to_vector(self,news_corpos):
-        """
-        :return: daily news numpy array
-        """
 
-        #     news_vectors = np.empty(len(news_corpos))
-        news_vectors = []
-        for news in news_corpos:
-            ls = news.split()
-            length = len(ls)
-            single_news_vec = []
-            for word in ls:
-                #             print(word)
-                try:
-                    single_news_vec.append(np.asarray(self.model[word]))
-                except KeyError:
-                    #                 print('No word')
-                    single_news_vec.append(np.random.uniform(-1.0, 1.0, embedding_dim))
-            #size 22 * 50
-            single_news_vec = np.array(single_news_vec)
-            # size n * 50
+    # def dailynews_to_vector(self,news_corpos):
+    #     """
+    #
+    #     :return: daily news numpy array
+    #     """
+    #
+    #     #     news_vectors = np.empty(len(news_corpos))
+    #     news_vectors = []
+    #     for news in news_corpos:
+    #         ls = news.split()
+    #         length = len(ls)
+    #         single_news_vec = []
+    #         for word in ls:
+    #             #             print(word)
+    #             try:
+    #                 single_news_vec.append(np.asarray(self.model[word]))
+    #             except KeyError:
+    #                 #                 print('No word')
+    #                 single_news_vec.append(np.random.uniform(-1.0, 1.0, embedding_dim))
+    #         #size 22 * 50
+    #         single_news_vec = np.array(single_news_vec)
+    #         # size n * 50
+    #
+    #         # print('single news vector:',single_news_vec.shape)
+    #
+    #         #
+    #         news_vectors.append(single_news_vec.mean(0))
+    #     # 22 * 50
+    #     news_vectors = np.array(news_vectors)
+    #     # print('daily total news vecotr:',news_vectors.shape)
+    #     return news_vectors
 
-            # print('single news vector:',single_news_vec.shape)
-
-            #
-            news_vectors.append(single_news_vec.mean(0))
-        # 22 * 50
-        news_vectors = np.array(news_vectors)
-        # print('daily total news vecotr:',news_vectors.shape)
-        return news_vectors
 
 
+    # def pooling(self,dailynews):
+    #     news_max = dailynews.max(0)
+    #     news_min = dailynews.min(0)
+    #     news_mean = dailynews.mean(0)
+    #
+    #     dailynews = np.concatenate((news_max,news_min,news_mean),axis=None)
+    #     return dailynews
 
-    def pooling(self,dailynews):
-        news_max = dailynews.max(0)
-        news_min = dailynews.min(0)
-        news_mean = dailynews.mean(0)
+    # def news_embedding(self,headlines):
+    #     headlines_vector = []
+    #     for dailynews in headlines:
+    #         day_news = self.dailynews_to_vector(dailynews)
+    #
+    #         headlines_vector.append(day_news)
+    #
+    #     return np.array(headlines_vector)
 
-        dailynews = np.concatenate((news_max,news_min,news_mean),axis=None)
-        return dailynews
 
     def news_embedding(self,headlines):
-        headlines_vector = []
-        for dailynews in headlines:
-            day_news = self.dailynews_to_vector(dailynews)
+        """
+        do the news embedding op
+        :param headlines: the whole news data set
+        :return: the data set of embedding news
+        """
+        res = []
+        for headline in headlines:
+            # print(headline)
 
-            headlines_vector.append(day_news)
+            hd_embedding_array = self.bc.encode(headline)
 
-        return np.array(headlines_vector)
+            # print(hd_embedding_array)
+            res.append(hd_embedding_array)
+        return np.array(res)
+
 
     def create_dataset(self,prices_trend, headlines, time_step):
+        """
+
+        :param prices_trend: stock list
+        :param headlines: news list
+        :param time_step: time step 10
+        :return: three np array
+        """
         x, y, y_seq = [], [], []
         for i in range(len(prices_trend) - time_step - 1):
             last = i + time_step
             x.append(headlines[i:last])
+
+            #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             y.append(1 if prices_trend[last] > 0 else 0)
             y_seq.append(prices_trend[i:last])
+
         return np.array(x), np.array(y), np.array(y_seq)
 
     def get_all_data(self):
-        # transfer_model(file,glove_vector_name)
+        """
 
+        :return: the stock predict(list) and news np array
+        """
+
+        #get the original data of trend and headline
         prices_trend, headlines = self.get_data_from_csv()
 
+        print(prices_trend)
+        print(type(prices_trend))
+
+        #do the word cleaning
+
+        #stylle:[[news,news,news],
+        #        [news,news,news]
+        #        [news,news,news]]
         headlines = self.clean_new(headlines)
 
-        headlines = self.news_embedding(headlines)
+        for headline in headlines:
+
+            print(headline)
+
+
+        #do the news embedding
+
+        headlines = self.news_embedding(headlines[:20])
+
         # print(headlines[:5])
 
         #
         min_length = min(len(i) for i in headlines)
         max_length = max(len(i) for i in headlines)
         cur_headlines = []
+
+        #make full to 25
         for headline in headlines:
             if len(headline) == max_length:
                 cur_headlines.append(headline)
             else:
                 cur_headlines.append(np.concatenate((headline,np.zeros((max_length - len(headline),embedding_dim)))))
-        # headlines = [i for i in headlines if len(i) == max_length else i + ]
-        # headlines = [i[:min_length] for i in headlines]
-        # print(headlines[:10])
+
+
+        # prices type is list
         return prices_trend, np.array(cur_headlines)
 
 
 
-
+#
+# ds = DataSet(DRIVING, TARGET,10)
 
 
