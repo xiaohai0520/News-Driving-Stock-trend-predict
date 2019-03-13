@@ -1,6 +1,7 @@
 # News Driving Stock trend predict based on DA-RNN
 This project is used for predicting the trend of stock based on the news.
-
+# temporary link
+[test_RNN_for_stock_series](https://github.com/xiaohai0520/test_RNN_for_stock_series)
 ## Content
 - [Deployment](#deployment)
 - [Usage](#usage)
