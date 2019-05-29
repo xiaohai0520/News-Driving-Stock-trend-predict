@@ -9,13 +9,13 @@ import nltk
 from nltk.corpus import stopwords
 from bert_serving.client import BertClient
 
-DRIVING = "D:\Projects\\stock_predict\\stock_data\\Predicting-the-Dow-Jones-with-Headlines-master\\News.csv"
-TARGET = "D:\Projects\\stock_predict\\stock_data\\Predicting-the-Dow-Jones-with-Headlines-master\\DowJones.csv"
+DRIVING = ".\\stock_data\\News.csv"
+TARGET = ".\\stock_data\\DowJones.csv"
 
 # global file path
 # file = "D:\\Projects\\stock_predict\\glove.6B\\glove.6B.50d.txt"
 # glove_vector_name = "gensim_glove_vectors.txt"
-embedding_dim = 50
+embedding_dim = 768
 
 # A list of contractions from http://stackoverflow.com/questions/19790188/expanding-english-language-contractions-in-python
 contractions = {
@@ -106,7 +106,7 @@ class DataSet():
         self.pricesfile = pricesfile
 
         #create a BERT Client object to do the sentence embedding
-        self.bc = BertClient(check_length=False)
+        # self.bc = BertClient(check_length=False)
 
         #transfer the txt into w2v file
         # self.transfer_model(file,glove_vector_name)
@@ -118,10 +118,10 @@ class DataSet():
         #read from the csv
         prices_trend, headlines = self.get_all_data()
 
-        self.news, self.y, self.y_seq = self.create_dataset(prices_trend, headlines, time_step)
-
-        print(self.news.shape)
-
+        self.news, self.y = self.create_dataset(prices_trend, headlines, time_step)
+        #
+        # print(self.news.shape)
+        #
         self.train_size = int(split_ratio * (len(self.y) - time_step - 1))
 
         self.validation_size = (len(self.y) - self.train_size)//2
@@ -135,14 +135,14 @@ class DataSet():
         return self.news[0].shape[1]
 
     def get_train_set(self):
-        return self.news[:self.train_size], self.y[:self.train_size], self.y_seq[:self.train_size]
+        return self.news[:self.train_size], self.y[:self.train_size]
 
     def get_validation_set(self):
-        return self.news[self.train_size:self.train_size+self.validation_size],self.y[self.train_size:self.train_size+self.validation_size],self.y_seq[self.train_size:self.train_size+self.validation_size]
+        return self.news[self.train_size:self.train_size+self.validation_size],self.y[self.train_size:self.train_size+self.validation_size]
 
     def get_test_set(self):
-        return self.news[self.train_size+self.validation_size:],self.y[self.train_size+self.validation_size:],self.y_seq[self.train_size+self.validation_size:]
-        # return self.news[self.train_size:], self.y[self.train_size:], self.y_seq[self.train_size:]
+        return self.news[self.train_size+self.validation_size:],self.y[self.train_size+self.validation_size:]
+
 
 
     # def transfer_model(self,input, output):
@@ -167,9 +167,9 @@ class DataSet():
         read the data from the csv
         :return: both of the news and stock price
         """
-        dj = pd.read_csv(self.pricesfile)
+        prices = pd.read_csv(self.pricesfile)
         news = pd.read_csv(self.newsfile)
-        return dj, news
+        return prices, news
 
 
     def clean_text(self,text, remove_stopwords=True):
@@ -227,7 +227,7 @@ class DataSet():
         read data from csv and return the array
         :return: stock trend and news array
         """
-        dj, news = self.read_news()
+        prices, news = self.read_news()
 
         # search the null length
         # print(dj.isnull().sum())
@@ -242,41 +242,77 @@ class DataSet():
         # print(len(set(news.Date)))
 
         # Remove the extra dates that are in news
-        news = news[news.Date.isin(dj.Date)]
+        news = news[news.Date.isin(prices.Date)]
 
         # make sure the equal
         # print(len(set(dj.Date)))
         # print(len(set(news.Date)))
 
-        # use the date as index to get the different each day
-        dj = dj.set_index('Date').diff(periods=1)
 
-        # print(dj.head())
+        # remove un need features
+        prices = prices.drop(['High', 'Low', 'Close', 'Volume', 'Adj Close'], 1)
 
-        # add the date back
-        dj['Date'] = dj.index
+        # prices = prices[::-1]
+        prices = prices[::-1].reset_index(drop=True)
 
-        dj = dj.reset_index(drop=True)
-        # Remove unneeded features
-        dj = dj.drop(['High', 'Low', 'Close', 'Volume', 'Adj Close'], 1)
-        # print(dj.head())
+        # print(prices.head())
+
+
+
+        prices_diff = prices['Open'].reset_index(drop=True).diff()
+
+
+
+        prices_diff.index = prices_diff.index - 1
+        # print(prices_diff.head())
+        # print(prices_open[1:].reset_index(drop=True).head())
+        # print('prices_open',prices_open.head())
+
+        # prices = prices.set_index('Date').diff()
+        # prices['Date'] = prices.index
+        # prices = prices.reset_index(drop=True)
+        # print(prices.head())
+
+
+
+        prices['Open_Diff'] = prices_diff
+
+
+
+
+
 
         # remove the first row
-        dj = dj[dj.Open.notnull()]
+        prices = prices[prices.Open.notnull()]
 
+        # print(prices.head())
         # two array to save the trend(label) and news(input_string)
         prices_trend = []
         headlines = []
-        for row in dj.iterrows():
+        for row in prices.iterrows():
             # print(row)
             # print('row0',row[0])
             daily_headlines = []
             # print('row1',row[1])
             date = row[1]['Date']
-            prices_trend.append(1 if row[1]['Open'] >= 0 else -1)
+
+
+            """ 0: down    1: preserve      2:up"""
+
+            if row[1]['Open_Diff']/row[1]['Open'] < -0.0041:
+                prices_trend.append(0)
+            elif -0.0041 <= row[1]['Open_Diff']/row[1]['Open'] < 0.0087:
+                prices_trend.append(1)
+            else:
+                prices_trend.append(2)
+
+
+
+
             for row_ in news[news.Date == date].iterrows():
                 daily_headlines.append(row_[1]['News'])
             headlines.append(daily_headlines)
+
 
         return prices_trend, headlines
 
@@ -358,7 +394,7 @@ class DataSet():
         for headline in headlines:
             # print(headline)
 
-            hd_embedding_array = self.bc.encode(headline)
+            hd_embedding_array = bc.encode(headline)
 
             # print(hd_embedding_array)
             res.append(hd_embedding_array)
@@ -370,19 +406,19 @@ class DataSet():
 
         :param prices_trend: stock list
         :param headlines: news list
-        :param time_step: time step 10
+        :param time_step: time step 15
         :return: three np array
         """
-        x, y, y_seq = [], [], []
+        x, y = [], []
         for i in range(len(prices_trend) - time_step - 1):
             last = i + time_step
             x.append(headlines[i:last])
 
             #!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-            y.append(1 if prices_trend[last] > 0 else 0)
-            y_seq.append(prices_trend[i:last])
+            y.append(prices_trend[last])
 
-        return np.array(x), np.array(y), np.array(y_seq)
+
+        return np.array(x), np.array(y)
 
     def get_all_data(self):
         """
@@ -393,8 +429,8 @@ class DataSet():
         #get the original data of trend and headline
         prices_trend, headlines = self.get_data_from_csv()
 
-        print(prices_trend)
-        print(type(prices_trend))
+        # print(prices_trend)
+        # print(type(prices_trend))
 
         #do the word cleaning
 
@@ -403,14 +439,16 @@ class DataSet():
         #        [news,news,news]]
         headlines = self.clean_new(headlines)
 
-        for headline in headlines:
+        # print(headlines)
 
-            print(headline)
+        # for headline in headlines:
+        #
+        #     print(headline)
 
 
         #do the news embedding
 
-        headlines = self.news_embedding(headlines[:20])
+        headlines = self.news_embedding(headlines)
 
         # print(headlines[:5])
 
@@ -430,9 +468,11 @@ class DataSet():
         # prices type is list
         return prices_trend, np.array(cur_headlines)
 
-
-
 #
-# ds = DataSet(DRIVING, TARGET,10)
-
-
+# bc = BertClient(check_length=False)
+# # #
+# ds = DataSet(DRIVING, TARGET,15)
+#
+# f = open('dataset_obj.txt','wb')
+# pickle.dump(ds,f,protocol=4)
+# f.close()
